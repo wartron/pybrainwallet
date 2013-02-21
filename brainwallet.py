@@ -1,3 +1,6 @@
+#!/usr/bin/python
+
+# willwharton/pyBrainwallet, February 2013, k
 # Joric/bitcoin-dev, june 2012, public domain
 import hashlib
 import ctypes
