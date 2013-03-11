@@ -3,6 +3,7 @@
 # willwharton/pyBrainwallet, February 2013, k
 # Joric/bitcoin-dev, june 2012, public domain
 import hashlib
+import itertools
 import ctypes
 import ctypes.util
 import sys
@@ -167,8 +168,51 @@ def get_addr(k):
     pkey = base58_check_encode(payload, 128)
     return addr, pkey
 
-def brain():
-    print get_addr(gen_eckey(passphrase=sys.argv[1]))
+def main():
+    import argparse
+    expanders = {
+        'product': lambda it, r: itertools.product(*it, repeat=r),
+        'permutations': itertools.permutations,
+        'combinations': itertools.combinations,
+        'combinations-replace': itertools.combinations_with_replacement,
+        }
+    parser = argparse.ArgumentParser()
+    parser.add_argument('passphrases', metavar='PASSPHRASE', nargs='*')
+    parser.add_argument('-f', metavar='FILE', type=open, dest='dict_file')
+    parser.add_argument('--min-length', type=int)
+    parser.add_argument('--max-length', type=int)
+    parser.add_argument('--expander', choices=expanders)
+    parser.add_argument('-n', type=int, default=3)
+    parser.add_argument('-c', '--candidates-file', type=open)
+    args = parser.parse_args()
+
+    if args.dict_file:
+        passphrases = (line.rstrip() for line in args.dict_file)
+    elif args.passphrases:
+        passphrases = args.passphrases
+
+    if args.expander:
+        expand_fn = expanders[args.expander]
+        passphrases = (''.join(p) for p in expand_fn(passphrases, args.n))
+
+    if args.min_length is not None and args.max_length is not None:
+        passphrases = (p for p in passphrases
+                       if args.min_length <= len(p) <= args.max_length)
+    elif args.min_length is not None:
+        passphrases = (p for p in passphrases if args.min_length <= len(p))
+    elif args.max_length is not None:
+        passphrases = (p for p in passphrases if len(p) <= args.max_length)
+
+    results = ((passphrase, get_addr(gen_eckey(passphrase=passphrase)))
+               for passphrase in passphrases)
+
+    if args.candidates_file:
+        candidates = set(line.rstrip() for line in args.candidates_file)
+        results = ((passphrase, addr) for passphrase, addr in results
+                   if addr[0] in candidates)
+
+    for passphrase, addr in results:
+        print passphrase, addr
 
 if __name__ == '__main__':
-    brain()
+    main()
